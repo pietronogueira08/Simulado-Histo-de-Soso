@@ -462,7 +462,7 @@ function goToSlide(n, direction = 1) {
     }
 
     // Carrega imagem
-    const imgPath = `slides/slide_${String(n).padStart(3,'0')}.png`;
+    const imgPath = `slides/slide_${String(n).padStart(3,'0')}.jpg`;
     slideImg.src = imgPath;
     slideImg.onload = () => slideImg.classList.remove('fading');
     slideImg.onerror = () => {
