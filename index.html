@@ -224,26 +224,52 @@
     }
     .warn-pulse { animation: pulse-warn .6s infinite; }
 
-    /* ====== END SCREEN ====== */
     #end-screen {
       flex-direction: column; gap: 24px;
-      background: radial-gradient(ellipse at 50% 40%, #1a2a1a 0%, #0a0a0f 70%);
+      background: radial-gradient(ellipse at 50% 40%, #1a1a2e 0%, #0a0a0f 70%);
     }
-    .end-emoji { font-size: 72px; }
+    .end-emoji { font-size: 72px; animation: float 3s ease-in-out infinite; }
+    @keyframes float {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-10px); }
+    }
     .end-title {
       font-size: 40px; font-weight: 800;
-      background: linear-gradient(135deg, #3ecf8e 0%, #6c7aff 100%);
+      background: linear-gradient(135deg, #f9a8d4 0%, #c084fc 100%);
       -webkit-background-clip: text; -webkit-text-fill-color: transparent;
     }
-    .end-sub { font-size: 16px; color: var(--clr-muted); }
+    .end-sophia {
+      max-width: 560px; text-align: center;
+      background: linear-gradient(135deg, #ffffff08, #f9a8d408);
+      border: 1px solid #f9a8d430;
+      border-radius: 20px; padding: 28px 36px;
+      animation: fadeUp .8s ease;
+    }
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(20px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .sophia-msg {
+      font-size: 17px; line-height: 1.8;
+      color: #f0e6ff;
+    }
+    .sophia-msg strong {
+      color: #f9a8d4; font-size: 20px;
+    }
+    .sophia-sub {
+      margin-top: 16px;
+      font-size: 15px; color: #c084fc;
+      font-style: italic; letter-spacing: .3px;
+    }
     .btn-restart {
       padding: 14px 40px;
       font-family: var(--font); font-size: 16px; font-weight: 600;
       color: #fff; background: transparent;
-      border: 2px solid #6c7aff; border-radius: 50px; cursor: pointer;
+      border: 2px solid #c084fc; border-radius: 50px; cursor: pointer;
       transition: background .2s, box-shadow .2s;
     }
-    .btn-restart:hover { background: #6c7aff22; box-shadow: 0 0 24px #6c7aff44; }
+    .btn-restart:hover { background: #c084fc22; box-shadow: 0 0 24px #c084fc44; }
+
   </style>
 </head>
 <body>
@@ -325,9 +351,17 @@
 
 <!-- ===== END SCREEN ===== -->
 <div class="screen hidden" id="end-screen">
-  <div class="end-emoji">🎉</div>
-  <div class="end-title">Obrigado!</div>
-  <div class="end-sub">Todas as lâminas foram apresentadas.</div>
+  <div class="end-emoji">🩺💖</div>
+  <div class="end-title">Fim das lâminas!</div>
+  <div class="end-sophia">
+    <p class="sophia-msg">
+      Parabéns, <strong>Sophia</strong>! 🌸<br/>
+      Cada lâmina que você estudou é mais um passo rumo ao seu jaleco.<br/>
+      O mundo vai ganhar uma médica incrível, dedicada e cheia de amor —<br/>
+      porque você coloca coração em tudo o que faz. 💛
+    </p>
+    <p class="sophia-sub">Vai ser uma médica <em>excepcional</em>. Isso é certo. ✨</p>
+  </div>
   <button class="btn-restart" onclick="restart()">Recomeçar do início</button>
 </div>
 
