@@ -1,0 +1,7 @@
+# Ignorar cache Python e o PDF original (muito pesado para o git)
+__pycache__/
+*.pyc
+*.pyo
+
+# Ignorar o PDF original (72MB - muito grande)
+*.pdf

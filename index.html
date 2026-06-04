@@ -1,0 +1,630 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ED Biologia Tecidual – Timer</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    /* ====== RESET & BASE ====== */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --clr-bg: #0a0a0f;
+      --clr-surface: #12121a;
+      --clr-border: #ffffff12;
+      --clr-question: #e05252;   /* vermelho – 60s */
+      --clr-answer:   #3ecf8e;   /* verde – 15s */
+      --clr-neutral:  #6c7aff;   /* azul – intro/fim */
+      --clr-text:     #f0f0f8;
+      --clr-muted:    #6b7280;
+      --radius: 16px;
+      --font: 'Inter', sans-serif;
+    }
+
+    html, body {
+      height: 100%; width: 100%;
+      background: var(--clr-bg);
+      font-family: var(--font);
+      color: var(--clr-text);
+      overflow: hidden;
+      user-select: none;
+    }
+
+    /* ====== SCREEN LAYERS ====== */
+    .screen {
+      position: fixed; inset: 0;
+      display: flex; align-items: center; justify-content: center;
+      transition: opacity .4s ease;
+    }
+    .screen.hidden { opacity: 0; pointer-events: none; }
+
+    /* ====== INTRO SCREEN ====== */
+    #intro-screen {
+      flex-direction: column; gap: 28px;
+      background: radial-gradient(ellipse at 50% 30%, #1a1a35 0%, #0a0a0f 70%);
+    }
+    .intro-logo {
+      font-size: 13px; letter-spacing: 3px; text-transform: uppercase;
+      color: var(--clr-muted);
+    }
+    .intro-title {
+      font-size: clamp(28px, 5vw, 52px); font-weight: 800;
+      background: linear-gradient(135deg, #fff 0%, #a78bfa 100%);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      text-align: center; line-height: 1.15;
+    }
+    .intro-subtitle {
+      font-size: 16px; color: var(--clr-muted); text-align: center; max-width: 480px;
+    }
+    .legend {
+      display: flex; gap: 32px; margin-top: 8px;
+    }
+    .legend-item {
+      display: flex; align-items: center; gap: 10px;
+      font-size: 15px; color: var(--clr-muted);
+    }
+    .legend-dot {
+      width: 14px; height: 14px; border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .legend-dot.q { background: var(--clr-question); }
+    .legend-dot.a { background: var(--clr-answer); }
+
+    .btn-start {
+      margin-top: 12px;
+      padding: 16px 52px;
+      font-family: var(--font); font-size: 18px; font-weight: 700;
+      color: #fff; background: linear-gradient(135deg, #6c7aff 0%, #a78bfa 100%);
+      border: none; border-radius: 50px; cursor: pointer;
+      box-shadow: 0 8px 32px #6c7aff44;
+      transition: transform .15s, box-shadow .15s;
+    }
+    .btn-start:hover { transform: scale(1.04); box-shadow: 0 12px 40px #6c7aff66; }
+    .btn-start:active { transform: scale(0.98); }
+
+    /* ====== PRESENTATION SCREEN ====== */
+    #pres-screen { flex-direction: column; }
+
+    /* Slide container */
+    .slide-wrap {
+      flex: 1; width: 100%;
+      display: flex; align-items: center; justify-content: center;
+      position: relative; overflow: hidden;
+      background: #000;
+    }
+    .slide-img {
+      max-width: 100%; max-height: 100%;
+      object-fit: contain;
+      transition: opacity .3s ease;
+    }
+    .slide-img.fading { opacity: 0; }
+
+    /* Overlay HUD */
+    .hud {
+      position: absolute; top: 18px; right: 18px;
+      display: flex; flex-direction: column; align-items: center; gap: 6px;
+      z-index: 10;
+    }
+
+    /* Circular timer */
+    .timer-ring-wrap {
+      position: relative; width: 100px; height: 100px;
+    }
+    .timer-ring-wrap svg {
+      width: 100%; height: 100%;
+      transform: rotate(-90deg);
+    }
+    .ring-bg { fill: none; stroke: #ffffff18; stroke-width: 6; }
+    .ring-fg {
+      fill: none; stroke-width: 6;
+      stroke-linecap: round;
+      transition: stroke-dashoffset .9s linear, stroke .3s;
+    }
+    .timer-label {
+      position: absolute; top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      font-size: 26px; font-weight: 800;
+      font-variant-numeric: tabular-nums;
+      transition: color .3s;
+    }
+
+    /* Slide type badge */
+    .slide-badge {
+      padding: 4px 14px;
+      border-radius: 20px;
+      font-size: 11px; font-weight: 700;
+      letter-spacing: 1.5px; text-transform: uppercase;
+      transition: background .3s, color .3s;
+    }
+
+    /* Slide number */
+    .slide-number {
+      font-size: 11px; color: #ffffff55; text-align: center;
+    }
+
+    /* Controls hint */
+    .controls-hint {
+      position: absolute; bottom: 10px; left: 50%;
+      transform: translateX(-50%);
+      font-size: 11px; color: #ffffff22;
+      letter-spacing: 1px;
+      transition: opacity .3s;
+      white-space: nowrap;
+    }
+
+    /* Keyboard shortcut chips */
+    .keys-wrap {
+      position: absolute; bottom: 10px; right: 18px;
+      display: flex; gap: 6px;
+    }
+    .key-chip {
+      padding: 3px 9px;
+      background: #ffffff0d; border: 1px solid #ffffff18;
+      border-radius: 6px; font-size: 10px; color: #ffffff55;
+      cursor: pointer; transition: background .15s, color .15s;
+    }
+    .key-chip:hover { background: #ffffff18; color: #ffffff99; }
+
+    /* Flash overlay for time-up */
+    .flash {
+      position: absolute; inset: 0;
+      background: transparent;
+      pointer-events: none;
+      transition: background .1s;
+      z-index: 5;
+    }
+    .flash.active { background: #ffffff18; }
+
+    /* ====== PAUSED OVERLAY ====== */
+    .pause-overlay {
+      position: absolute; inset: 0;
+      background: #000000cc;
+      display: flex; align-items: center; justify-content: center;
+      flex-direction: column; gap: 12px;
+      z-index: 20;
+      opacity: 0; pointer-events: none;
+      transition: opacity .3s;
+    }
+    .pause-overlay.active { opacity: 1; pointer-events: all; }
+    .pause-icon { font-size: 64px; }
+    .pause-text { font-size: 22px; font-weight: 700; color: #ffffffbb; }
+    .pause-hint { font-size: 14px; color: var(--clr-muted); }
+
+    /* ====== PROGRESS BAR ====== */
+    .progress-bar-wrap {
+      width: 100%; height: 3px;
+      background: #ffffff0a;
+      flex-shrink: 0;
+    }
+    .progress-bar-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #6c7aff, #a78bfa);
+      transition: width .4s ease;
+    }
+
+    /* ====== COLORS per type ====== */
+    .type-question .ring-fg   { stroke: var(--clr-question); }
+    .type-question .timer-label { color: var(--clr-question); }
+    .type-question .slide-badge { background: #e0525222; color: var(--clr-question); }
+
+    .type-answer .ring-fg     { stroke: var(--clr-answer); }
+    .type-answer .timer-label { color: var(--clr-answer); }
+    .type-answer .slide-badge { background: #3ecf8e22; color: var(--clr-answer); }
+
+    .type-intro .ring-fg      { stroke: var(--clr-neutral); }
+    .type-intro .timer-label  { color: var(--clr-neutral); }
+    .type-intro .slide-badge  { background: #6c7aff22; color: var(--clr-neutral); }
+
+    /* Pulsing warning when <=5s */
+    @keyframes pulse-warn {
+      0%, 100% { opacity: 1; }
+      50% { opacity: .4; }
+    }
+    .warn-pulse { animation: pulse-warn .6s infinite; }
+
+    /* ====== END SCREEN ====== */
+    #end-screen {
+      flex-direction: column; gap: 24px;
+      background: radial-gradient(ellipse at 50% 40%, #1a2a1a 0%, #0a0a0f 70%);
+    }
+    .end-emoji { font-size: 72px; }
+    .end-title {
+      font-size: 40px; font-weight: 800;
+      background: linear-gradient(135deg, #3ecf8e 0%, #6c7aff 100%);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    }
+    .end-sub { font-size: 16px; color: var(--clr-muted); }
+    .btn-restart {
+      padding: 14px 40px;
+      font-family: var(--font); font-size: 16px; font-weight: 600;
+      color: #fff; background: transparent;
+      border: 2px solid #6c7aff; border-radius: 50px; cursor: pointer;
+      transition: background .2s, box-shadow .2s;
+    }
+    .btn-restart:hover { background: #6c7aff22; box-shadow: 0 0 24px #6c7aff44; }
+  </style>
+</head>
+<body>
+
+<!-- ===== INTRO SCREEN ===== -->
+<div class="screen" id="intro-screen">
+  <p class="intro-logo">Estudo Dirigido • Biologia Tecidual</p>
+  <h1 class="intro-title">Prova em Slide<br/>P2 Timer</h1>
+  <p class="intro-subtitle">
+    Cada lâmina terá <strong>60 segundos</strong> para o palpite e
+    <strong>15 segundos</strong> para a resposta — tudo automático.
+  </p>
+  <div class="legend">
+    <div class="legend-item">
+      <div class="legend-dot q"></div>
+      <span>Pergunta — 60s</span>
+    </div>
+    <div class="legend-item">
+      <div class="legend-dot a"></div>
+      <span>Resposta — 15s</span>
+    </div>
+  </div>
+  <button class="btn-start" id="btn-start" onclick="startPresentation()">Iniciar ▶</button>
+</div>
+
+<!-- ===== PRESENTATION SCREEN ===== -->
+<div class="screen hidden" id="pres-screen">
+
+  <!-- Progress bar top -->
+  <div class="progress-bar-wrap">
+    <div class="progress-bar-fill" id="progress-fill"></div>
+  </div>
+
+  <!-- Slide area -->
+  <div class="slide-wrap" id="slide-wrap">
+    <img class="slide-img" id="slide-img" src="" alt="Slide" />
+
+    <!-- Flash -->
+    <div class="flash" id="flash"></div>
+
+    <!-- HUD top-right -->
+    <div class="hud" id="hud">
+      <!-- Circular timer -->
+      <div class="timer-ring-wrap" id="timer-ring-wrap">
+        <svg viewBox="0 0 100 100">
+          <circle class="ring-bg" cx="50" cy="50" r="44"/>
+          <circle class="ring-fg" id="ring-fg" cx="50" cy="50" r="44"
+            stroke-dasharray="276.46" stroke-dashoffset="0"/>
+        </svg>
+        <span class="timer-label" id="timer-label">—</span>
+      </div>
+      <!-- Badge -->
+      <div class="slide-badge" id="slide-badge">INTRO</div>
+      <!-- Slide number -->
+      <div class="slide-number" id="slide-number">1 / 69</div>
+    </div>
+
+    <!-- Pause overlay -->
+    <div class="pause-overlay" id="pause-overlay">
+      <div class="pause-icon">⏸</div>
+      <div class="pause-text">Pausado</div>
+      <div class="pause-hint">Pressione P para continuar</div>
+    </div>
+
+    <!-- Bottom controls hint -->
+    <div class="controls-hint">← Voltar &nbsp;|&nbsp; → / Espaço Avançar &nbsp;|&nbsp; P Pausar &nbsp;|&nbsp; R Reiniciar &nbsp;|&nbsp; F Fullscreen</div>
+
+    <!-- Key chips -->
+    <div class="keys-wrap">
+      <div class="key-chip" onclick="prevSlide()" title="Anterior">◀</div>
+      <div class="key-chip" onclick="togglePause()" title="Pausar (P)">⏸</div>
+      <div class="key-chip" onclick="resetTimer()" title="Reiniciar (R)">↺</div>
+      <div class="key-chip" onclick="nextSlide()" title="Próximo">▶</div>
+      <div class="key-chip" onclick="toggleFullscreen()" title="Fullscreen (F)">⛶</div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ===== END SCREEN ===== -->
+<div class="screen hidden" id="end-screen">
+  <div class="end-emoji">🎉</div>
+  <div class="end-title">Obrigado!</div>
+  <div class="end-sub">Todas as lâminas foram apresentadas.</div>
+  <button class="btn-restart" onclick="restart()">Recomeçar do início</button>
+</div>
+
+<script>
+/* ==========================================
+   CONFIGURAÇÃO
+   ========================================== */
+const TOTAL_SLIDES = 69;
+
+/*
+  Tipo de cada slide (1-indexed):
+  'intro'    = sem timer
+  'question' = 60s (lâmina – páginas ímpares: 5,7,9...67)
+  'answer'   = 15s (texto – páginas pares: 6,8,10...68)
+  'end'      = tela final
+
+  Páginas 1-4: intro
+  Páginas 5,7,9,...,67: question  (ímpar de 5 a 67)
+  Páginas 6,8,10,...,68: answer   (par de 6 a 68)
+  Página 69: end
+*/
+function getSlideType(n) {
+  if (n >= 1 && n <= 4) return 'intro';
+  if (n === 69)         return 'end';
+  if (n % 2 === 1)      return 'question';   // ímpar
+  return 'answer';                            // par
+}
+
+const TIMER_SECONDS = { question: 60, answer: 15, intro: null, end: null };
+
+const CIRCUMFERENCE = 2 * Math.PI * 44; // 276.46
+
+/* ==========================================
+   ESTADO
+   ========================================== */
+let currentSlide = 1;
+let timerTotal   = 0;
+let timerLeft    = 0;
+let timerInterval = null;
+let paused       = false;
+
+/* ==========================================
+   ELEMENTOS
+   ========================================== */
+const introScreen  = document.getElementById('intro-screen');
+const presScreen   = document.getElementById('pres-screen');
+const endScreen    = document.getElementById('end-screen');
+const slideImg     = document.getElementById('slide-img');
+const slideWrap    = document.getElementById('slide-wrap');
+const progressFill = document.getElementById('progress-fill');
+const timerLabel   = document.getElementById('timer-label');
+const ringFg       = document.getElementById('ring-fg');
+const slideBadge   = document.getElementById('slide-badge');
+const slideNumber  = document.getElementById('slide-number');
+const pauseOverlay = document.getElementById('pause-overlay');
+const flashEl      = document.getElementById('flash');
+const hud          = document.getElementById('hud');
+
+/* ==========================================
+   ÁUDIO (beep sintético via Web Audio)
+   ========================================== */
+let audioCtx;
+function getAudioCtx() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  return audioCtx;
+}
+
+function beep(freq = 880, duration = 0.12, vol = 0.15) {
+  try {
+    const ctx = getAudioCtx();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain); gain.connect(ctx.destination);
+    osc.frequency.value = freq;
+    gain.gain.setValueAtTime(vol, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + duration);
+    osc.start(ctx.currentTime);
+    osc.stop(ctx.currentTime + duration);
+  } catch(e) {}
+}
+
+function chime() {
+  // som de transição suave
+  beep(660, 0.1, 0.1);
+  setTimeout(() => beep(880, 0.1, 0.08), 120);
+}
+
+function warningBeep() {
+  beep(440, 0.08, 0.12);
+}
+
+function timeUpSound() {
+  beep(330, 0.15, 0.2);
+  setTimeout(() => beep(280, 0.3, 0.15), 180);
+}
+
+/* ==========================================
+   NAVEGAÇÃO
+   ========================================== */
+function startPresentation() {
+  introScreen.classList.add('hidden');
+  presScreen.classList.remove('hidden');
+  // Começa do slide 5 (primeira lâmina - pergunta 1)
+  goToSlide(5);
+}
+
+function restart() {
+  endScreen.classList.add('hidden');
+  introScreen.classList.remove('hidden');
+}
+
+function goToSlide(n, direction = 1) {
+  if (n < 1 || n > TOTAL_SLIDES) return;
+
+  stopTimer();
+  paused = false;
+  pauseOverlay.classList.remove('active');
+
+  // Fade out
+  slideImg.classList.add('fading');
+
+  setTimeout(() => {
+    currentSlide = n;
+    const type = getSlideType(n);
+
+    // Se chegou no slide 69 (fim), mostra end screen
+    if (type === 'end') {
+      presScreen.classList.add('hidden');
+      endScreen.classList.remove('hidden');
+      slideImg.classList.remove('fading');
+      return;
+    }
+
+    // Carrega imagem
+    const imgPath = `slides/slide_${String(n).padStart(3,'0')}.png`;
+    slideImg.src = imgPath;
+    slideImg.onload = () => slideImg.classList.remove('fading');
+    slideImg.onerror = () => {
+      slideImg.classList.remove('fading');
+    };
+
+    // Atualiza HUD
+    updateHUD(n, type);
+
+    // Inicia timer
+    startTimer(type);
+
+    // Progresso (slides 5-68, total 64 slides de jogo)
+    const gameSlides = 64;
+    const pos = Math.max(0, n - 4);
+    const pct = Math.min(100, (pos / gameSlides) * 100);
+    progressFill.style.width = pct + '%';
+
+  }, 280);
+}
+
+function nextSlide() {
+  if (currentSlide >= TOTAL_SLIDES) return;
+  goToSlide(currentSlide + 1);
+}
+
+function prevSlide() {
+  if (currentSlide <= 5) return; // não volta antes do início do jogo
+  goToSlide(currentSlide - 1);
+}
+
+/* ==========================================
+   HUD
+   ========================================== */
+function updateHUD(n, type) {
+  // Remove todos os type-* do hud e slide-wrap
+  slideWrap.className = 'slide-wrap type-' + type;
+
+  slideNumber.textContent = `Slide ${n} / ${TOTAL_SLIDES}`;
+
+  const labels = { question: '⏱ PERGUNTA', answer: '✅ RESPOSTA', intro: 'INTRO', end: 'FIM' };
+  slideBadge.textContent = labels[type] || type.toUpperCase();
+
+  if (type === 'question') {
+    // Número da questão (pág 5=Q1, 7=Q2, 9=Q3... (n-3)/2)
+    const qNum = Math.floor((n - 3) / 2);
+    slideNumber.textContent = `Lâmina ${qNum} de 32  •  Slide ${n}`;
+  } else if (type === 'answer') {
+    const qNum = Math.floor((n - 4) / 2);
+    slideNumber.textContent = `Resposta ${qNum}  •  Slide ${n}`;
+  }
+}
+
+/* ==========================================
+   TIMER
+   ========================================== */
+function startTimer(type) {
+  const secs = TIMER_SECONDS[type];
+  hud.style.display = (secs === null) ? 'none' : 'flex';
+
+  if (secs === null) return; // intro / end
+
+  timerTotal = secs;
+  timerLeft  = secs;
+  updateRing(secs, secs);
+  timerLabel.classList.remove('warn-pulse');
+
+  timerInterval = setInterval(() => {
+    if (paused) return;
+    timerLeft--;
+
+    // Beep de aviso nos últimos 5s
+    if (timerLeft <= 5 && timerLeft > 0) {
+      warningBeep();
+      timerLabel.classList.add('warn-pulse');
+    }
+
+    updateRing(timerLeft, timerTotal);
+
+    if (timerLeft <= 0) {
+      stopTimer();
+      timeUpSound();
+      flashEl.classList.add('active');
+      setTimeout(() => {
+        flashEl.classList.remove('active');
+        nextSlide();
+      }, 600);
+    }
+  }, 1000);
+}
+
+function stopTimer() {
+  clearInterval(timerInterval);
+  timerInterval = null;
+}
+
+function resetTimer() {
+  const type = getSlideType(currentSlide);
+  const secs = TIMER_SECONDS[type];
+  if (!secs) return;
+  stopTimer();
+  timerLeft = secs;
+  timerLabel.classList.remove('warn-pulse');
+  updateRing(secs, secs);
+  startTimer(type);
+}
+
+function togglePause() {
+  paused = !paused;
+  pauseOverlay.classList.toggle('active', paused);
+}
+
+function updateRing(left, total) {
+  const pct = total > 0 ? left / total : 0;
+  const offset = CIRCUMFERENCE * (1 - pct);
+  ringFg.style.strokeDashoffset = offset;
+  timerLabel.textContent = left > 0 ? left : '0';
+}
+
+/* ==========================================
+   FULLSCREEN
+   ========================================== */
+function toggleFullscreen() {
+  if (!document.fullscreenElement) {
+    document.documentElement.requestFullscreen().catch(() => {});
+  } else {
+    document.exitFullscreen().catch(() => {});
+  }
+}
+
+/* ==========================================
+   TECLADO
+   ========================================== */
+document.addEventListener('keydown', e => {
+  // Não interfere quando o intro está visível
+  if (!presScreen.classList.contains('hidden')) {
+    switch(e.key) {
+      case 'ArrowRight':
+      case ' ':
+        e.preventDefault(); nextSlide(); break;
+      case 'ArrowLeft':
+        e.preventDefault(); prevSlide(); break;
+      case 'p': case 'P':
+        togglePause(); break;
+      case 'r': case 'R':
+        resetTimer(); break;
+      case 'f': case 'F':
+        toggleFullscreen(); break;
+      case 'Escape':
+        if (paused) togglePause(); break;
+    }
+  } else if (!introScreen.classList.contains('hidden')) {
+    if (e.key === ' ' || e.key === 'Enter') startPresentation();
+  }
+});
+
+/* ==========================================
+   CLICK NO SLIDE para avançar
+   ========================================== */
+slideImg.addEventListener('click', () => {
+  if (!paused) nextSlide();
+});
+</script>
+</body>
+</html>
