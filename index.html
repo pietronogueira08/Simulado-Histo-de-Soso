@@ -279,17 +279,17 @@
   <p class="intro-logo">Estudo Dirigido • Biologia Tecidual</p>
   <h1 class="intro-title">Prova em Slide<br/>P2 Timer</h1>
   <p class="intro-subtitle">
-    Cada lâmina terá <strong>60 segundos</strong> para o palpite e
-    <strong>15 segundos</strong> para a resposta — tudo automático.
+    Primeiro todas as <strong>32 perguntas</strong> (30s cada),
+    depois todas as <strong>32 respostas</strong> (15s cada) — tudo automático.
   </p>
   <div class="legend">
     <div class="legend-item">
       <div class="legend-dot q"></div>
-      <span>Pergunta — 60s</span>
+      <span>Perguntas primeiro — 30s</span>
     </div>
     <div class="legend-item">
       <div class="legend-dot a"></div>
-      <span>Resposta — 15s</span>
+      <span>Respostas depois — 15s</span>
     </div>
   </div>
   <button class="btn-start" id="btn-start" onclick="startPresentation()">Iniciar ▶</button>
@@ -369,39 +369,34 @@
 /* ==========================================
    CONFIGURAÇÃO
    ========================================== */
-const TOTAL_SLIDES = 69;
 
 /*
-  Tipo de cada slide (1-indexed):
-  'intro'    = sem timer
-  'question' = 60s (lâmina – páginas ímpares: 5,7,9...67)
-  'answer'   = 15s (texto – páginas pares: 6,8,10...68)
-  'end'      = tela final
-
-  Páginas 1-4: intro
-  Páginas 5,7,9,...,67: question  (ímpar de 5 a 67)
-  Páginas 6,8,10,...,68: answer   (par de 6 a 68)
-  Página 69: end
+  PLAYLIST: todas as perguntas (lâminas) primeiro,
+  depois todas as respostas — em ordem sequencial.
+  Perguntas: slides ímpares 5,7,9,...,67  (32 slides)
+  Respostas: slides pares  6,8,10,...,68  (32 slides)
 */
+const QUESTIONS = Array.from({length: 32}, (_, i) => 5 + i * 2); // [5,7,9,...,67]
+const ANSWERS   = Array.from({length: 32}, (_, i) => 6 + i * 2); // [6,8,10,...,68]
+const PLAYLIST  = [...QUESTIONS, ...ANSWERS]; // 64 itens no total
+
 function getSlideType(n) {
-  if (n >= 1 && n <= 4) return 'intro';
-  if (n === 69)         return 'end';
-  if (n % 2 === 1)      return 'question';   // ímpar
-  return 'answer';                            // par
+  if (n % 2 === 1) return 'question'; // ímpar
+  return 'answer';                    // par
 }
 
-const TIMER_SECONDS = { question: 30, answer: 15, intro: null, end: null };
+const TIMER_SECONDS = { question: 30, answer: 15 };
 
 const CIRCUMFERENCE = 2 * Math.PI * 44; // 276.46
 
 /* ==========================================
    ESTADO
    ========================================== */
-let currentSlide = 1;
-let timerTotal   = 0;
-let timerLeft    = 0;
+let playlistIndex = 0;   // posição atual na PLAYLIST
+let timerTotal    = 0;
+let timerLeft     = 0;
 let timerInterval = null;
-let paused       = false;
+let paused        = false;
 
 /* ==========================================
    ELEMENTOS
@@ -443,15 +438,7 @@ function beep(freq = 880, duration = 0.12, vol = 0.15) {
   } catch(e) {}
 }
 
-function chime() {
-  // som de transição suave
-  beep(660, 0.1, 0.1);
-  setTimeout(() => beep(880, 0.1, 0.08), 120);
-}
-
-function warningBeep() {
-  beep(440, 0.08, 0.12);
-}
+function warningBeep() { beep(440, 0.08, 0.12); }
 
 function timeUpSound() {
   beep(330, 0.15, 0.2);
@@ -464,8 +451,8 @@ function timeUpSound() {
 function startPresentation() {
   introScreen.classList.add('hidden');
   presScreen.classList.remove('hidden');
-  // Começa do slide 5 (primeira lâmina - pergunta 1)
-  goToSlide(5);
+  playlistIndex = 0;
+  goToIndex(0);
 }
 
 function restart() {
@@ -473,80 +460,59 @@ function restart() {
   introScreen.classList.remove('hidden');
 }
 
-function goToSlide(n, direction = 1) {
-  if (n < 1 || n > TOTAL_SLIDES) return;
+function goToIndex(idx) {
+  if (idx < 0) return;
+
+  // Fim da playlist → tela final
+  if (idx >= PLAYLIST.length) {
+    stopTimer();
+    presScreen.classList.add('hidden');
+    endScreen.classList.remove('hidden');
+    return;
+  }
 
   stopTimer();
   paused = false;
   pauseOverlay.classList.remove('active');
+  playlistIndex = idx;
 
-  // Fade out
+  const n    = PLAYLIST[idx];
+  const type = getSlideType(n);
+
+  // Fade out → carrega imagem → fade in
   slideImg.classList.add('fading');
-
   setTimeout(() => {
-    currentSlide = n;
-    const type = getSlideType(n);
-
-    // Se chegou no slide 69 (fim), mostra end screen
-    if (type === 'end') {
-      presScreen.classList.add('hidden');
-      endScreen.classList.remove('hidden');
-      slideImg.classList.remove('fading');
-      return;
-    }
-
-    // Carrega imagem
     const imgPath = `slides/slide_${String(n).padStart(3,'0')}.jpg`;
     slideImg.src = imgPath;
-    slideImg.onload = () => slideImg.classList.remove('fading');
-    slideImg.onerror = () => {
-      slideImg.classList.remove('fading');
-    };
+    slideImg.onload  = () => slideImg.classList.remove('fading');
+    slideImg.onerror = () => slideImg.classList.remove('fading');
 
-    // Atualiza HUD
-    updateHUD(n, type);
-
-    // Inicia timer
+    updateHUD(idx, n, type);
     startTimer(type);
 
-    // Progresso (slides 5-68, total 64 slides de jogo)
-    const gameSlides = 64;
-    const pos = Math.max(0, n - 4);
-    const pct = Math.min(100, (pos / gameSlides) * 100);
-    progressFill.style.width = pct + '%';
-
+    // Barra de progresso
+    progressFill.style.width = ((idx / (PLAYLIST.length - 1)) * 100) + '%';
   }, 280);
 }
 
-function nextSlide() {
-  if (currentSlide >= TOTAL_SLIDES) return;
-  goToSlide(currentSlide + 1);
-}
-
-function prevSlide() {
-  if (currentSlide <= 5) return; // não volta antes do início do jogo
-  goToSlide(currentSlide - 1);
-}
+function nextSlide() { goToIndex(playlistIndex + 1); }
+function prevSlide() { if (playlistIndex > 0) goToIndex(playlistIndex - 1); }
 
 /* ==========================================
    HUD
    ========================================== */
-function updateHUD(n, type) {
-  // Remove todos os type-* do hud e slide-wrap
+function updateHUD(idx, n, type) {
   slideWrap.className = 'slide-wrap type-' + type;
 
-  slideNumber.textContent = `Slide ${n} / ${TOTAL_SLIDES}`;
-
-  const labels = { question: '⏱ PERGUNTA', answer: '✅ RESPOSTA', intro: 'INTRO', end: 'FIM' };
+  const labels = { question: '⏱ PERGUNTA', answer: '✅ RESPOSTA' };
   slideBadge.textContent = labels[type] || type.toUpperCase();
 
   if (type === 'question') {
-    // Número da questão (pág 5=Q1, 7=Q2, 9=Q3... (n-3)/2)
-    const qNum = Math.floor((n - 3) / 2);
-    slideNumber.textContent = `Lâmina ${qNum} de 32  •  Slide ${n}`;
-  } else if (type === 'answer') {
-    const qNum = Math.floor((n - 4) / 2);
-    slideNumber.textContent = `Resposta ${qNum}  •  Slide ${n}`;
+    const qNum = idx + 1; // perguntas são os primeiros 32 itens da playlist
+    slideNumber.textContent = `Lâmina ${qNum} de 32`;
+  } else {
+    const aNum = idx - 31; // respostas começam no índice 32
+    slideNumber.textContent = `Resposta ${aNum} de 32`;
   }
 }
 
@@ -594,7 +560,8 @@ function stopTimer() {
 }
 
 function resetTimer() {
-  const type = getSlideType(currentSlide);
+  const n    = PLAYLIST[playlistIndex];
+  const type = getSlideType(n);
   const secs = TIMER_SECONDS[type];
   if (!secs) return;
   stopTimer();
